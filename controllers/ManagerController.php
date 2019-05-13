@@ -6,6 +6,7 @@ use Yii;
 use gromovfjodor\imagemanager\models\ImageManager;
 use gromovfjodor\imagemanager\models\ImageManagerSearch;
 use gromovfjodor\imagemanager\assets\ImageManagerModuleAsset;
+use gromovfjodor\imagemanager\helpers\UploadHelper;
 use yii\web\Response;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
@@ -55,8 +56,8 @@ class ManagerController extends Controller {
 	 */
 	public function actionIndex() {
         //set asset
-		ImageManagerModuleAsset::register($this->view);	
-        
+		ImageManagerModuleAsset::register($this->view);
+
 		//get iframe parameters
 		$viewMode = Yii::$app->request->get("view-mode", "page");
 		$selectType = Yii::$app->request->get("select-type", "input");
@@ -115,61 +116,8 @@ class ManagerController extends Controller {
 	public function actionUpload() {
         //set response header
         Yii::$app->getResponse()->format = Response::FORMAT_JSON;
-        // Check if the user is allowed to upload the image
-        if (Yii::$app->controller->module->canUploadImage == false) {
-            // Return the response array to prevent from the action being executed any further
-            return [];
-        }
-        // Create the transaction and set the success variable
-        $transaction = Yii::$app->db->beginTransaction();
-        $bSuccess = false;
-
-		//disable Csrf
-		Yii::$app->controller->enableCsrfValidation = false;
-		//return default
-		$return = $_FILES;
-		//set media path
-		$sMediaPath = \Yii::$app->imagemanager->mediaPath;
-		//create the folder
-		BaseFileHelper::createDirectory($sMediaPath);
-
-		//check file isset
-		if (isset($_FILES['imagemanagerFiles']['tmp_name'])) {
-			//loop through each uploaded file
-			foreach ($_FILES['imagemanagerFiles']['tmp_name'] AS $key => $sTempFile) {
-				//collect variables
-				$sFileName = $_FILES['imagemanagerFiles']['name'][$key];
-				$sFileExtension = pathinfo($sFileName, PATHINFO_EXTENSION);
-				$iErrorCode = $_FILES['imagemanagerFiles']['error'][$key];
-				//if uploaded file has no error code  than continue;
-				if ($iErrorCode == 0) { 
-					//create a file record
-					$model = new ImageManager();
-					$model->fileName = str_replace("_", "-", $sFileName);
-					$model->fileHash = Yii::$app->getSecurity()->generateRandomString(32);
-					//if file is saved add record
-					if ($model->save()) {
-						//move file to dir
-						$sSaveFileName = $model->id . "_" . $model->fileHash . "." . $sFileExtension;
-						//move_uploaded_file($sTempFile, $sMediaPath."/".$sFileName);
-						//save with Imagine class
-						Image::getImagine()->open($sTempFile)->save($sMediaPath . "/" . $sSaveFileName);
-						$bSuccess = true;
-					}
-				}
-			}
-		}
-
-		if ($bSuccess) {
-		    // The upload action went successful, save the transaction
-		    $transaction->commit();
-		} else {
-		    // There where problems during the upload, kill the transaction
-		    $transaction->rollBack();
-		}
-
-		//echo return json encoded
-		return $return;
+        // return json
+        return UploadHelper::upload();
 	}
 
 	/**
@@ -177,7 +125,7 @@ class ManagerController extends Controller {
 	 * @return mixed
 	 */
 	public function actionCrop() {
-		//return 
+		//return
 		$return = null;
 		//disable Csrf
 		Yii::$app->controller->enableCsrfValidation = false;
@@ -204,19 +152,19 @@ class ManagerController extends Controller {
             //start transaction
             $transaction  = Yii::$app->db->beginTransaction();
             $bCropSuccess = false;
-            
+
 			//create a file record
 			$model = new ImageManager();
 			$model->fileName = $sDisplayFileName;
 			$model->fileHash = Yii::$app->getSecurity()->generateRandomString(32);
 			//if file is saved add record
 			if ($model->save()) {
-                
+
                 //do crop in try catch
                 try {
                     // create file name
                     $sSaveFileName = $model->id . "_" . $model->fileHash . "." . $sFileExtension;
-                    
+
                     // get current/original image data
                     $imageOriginal = Image::getImagine()->open($modelOriginal->imagePathPrivate);
                     $imageOriginalSize = $imageOriginal->getSize();
@@ -224,12 +172,12 @@ class ManagerController extends Controller {
                     $imageOriginalHeight = $imageOriginalSize->getHeight();
                     $imageOriginalPositionX = 0;
                     $imageOriginalPositionY = 0;
-                    
+
                     // create/calculate a canvas size (if canvas is out of the box)
                     $imageCanvasWidth = $imageOriginalWidth;
                     $imageCanvasHeight = $imageOriginalHeight;
-                    
-                    // update canvas width if X position of croparea is lower than 0 
+
+                    // update canvas width if X position of croparea is lower than 0
                     if($aCropData['x'] < 0){
                         //set x postion to Absolute value
                         $iAbsoluteXpos = abs($aCropData['x']);
@@ -251,8 +199,8 @@ class ManagerController extends Controller {
                             $imageCanvasWidth += ($iCropWidthWithXpos - $imageOriginalWidth);
                         }
                     }
-                    
-                    // update canvas height if Y position of croparea is lower than 0 
+
+                    // update canvas height if Y position of croparea is lower than 0
                     if($aCropData['y'] < 0){
                         //set y postion to Absolute value
                         $iAbsoluteYpos = abs($aCropData['y']);
@@ -285,13 +233,13 @@ class ManagerController extends Controller {
                     // set postion to 0 if x or y is less than 0
                     $imageCropPositionXRounded = $aCropData['x'] < 0 ? 0 : round($aCropData['x']);
                     $imageCropPositionYRounded = $aCropData['y'] < 0 ? 0 :  round($aCropData['y']);
-                    
+
 //                    echo "canvas: ". $imageCanvasWidth ." x ".$imageCanvasHeight ."<br />";
 //                    echo "img pos x: ". $imageOriginalPositionX ." y ".$imageOriginalPositionY ."<br />";
 //                    die();
-//                       
+//
                     //todo: check if rotaded resize canvas (http://stackoverflow.com/questions/9971230/calculate-rotated-rectangle-size-from-known-bounding-box-coordinates)
-                    
+
                     // merge current image in canvas, crop image and save
                     $imagineRgb = new RGB();
                     $imagineColor = $imagineRgb->color('#FFF', 0);
@@ -300,10 +248,10 @@ class ManagerController extends Controller {
                                 ->paste($imageOriginal, new Point($imageOriginalPositionXRounded, $imageOriginalPositionYRounded))
                                 ->crop(new Point($imageCropPositionXRounded, $imageCropPositionYRounded), new Box($imageCropWidthRounded, $imageCropHeightRounded))
                                 ->save($sMediaPath . "/" . $sSaveFileName);
-                    
+
                     //set boolean crop success to true
                     $bCropSuccess = true;
-                    
+
                     //set return id
                     $return = $model->id;
 
@@ -312,16 +260,16 @@ class ManagerController extends Controller {
                         $modelOriginal->delete();
                     }
                 } catch (ErrorException $e) {
-                    
+
                 }
 			}
-            
+
             //commit transaction if boolean is true
             if($bCropSuccess){
                 $transaction->commit();
             }
 		}
-        
+
 		//echo return json encoded
 		return $return;
 	}
@@ -379,7 +327,7 @@ class ManagerController extends Controller {
 	 * @return mixed
 	 */
 	public function actionDelete() {
-		//return 
+		//return
 		$return = ['delete' => false];
 		//set response header
 		Yii::$app->getResponse()->format = Response::FORMAT_JSON;
