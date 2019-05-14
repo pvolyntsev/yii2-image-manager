@@ -24,7 +24,7 @@ class UploadHelper
      * @throws \yii\base\Exception
      * @throws \yii\db\Exception
      */
-    public static function upload(string $uploadNames = self::UPLOAD_NAME, int $returnMode = RETURN_MODE_NAMES, bool $checkRights = true)
+    public static function upload(string $uploadNames = self::UPLOAD_NAME, int $returnMode = self::RETURN_MODE_NAMES, bool $checkRights = true)
     {
         // Check if the user is allowed to upload the image
         if ($checkRights && Yii::$app->controller->module->canUploadImage == false) {
